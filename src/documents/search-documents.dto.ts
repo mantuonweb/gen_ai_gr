@@ -1,3 +1,4 @@
+import { Type } from 'class-transformer';
 import { IsInt, IsString, Max, MaxLength, Min, MinLength } from 'class-validator';
 
 export class SearchDocumentsDto {
@@ -11,6 +12,7 @@ export class SearchDocumentsDto {
   @MaxLength(2000)
   query!: string;
 
+  @Type(() => Number)
   @IsInt()
   @Min(1)
   @Max(20)

@@ -86,6 +86,12 @@ export class App implements OnInit {
     }
   }
 
+  protected clearSelectedFile(): void {
+    this.selectedFile.set(null);
+    const fileInput = document.querySelector<HTMLInputElement>('#document-file');
+    if (fileInput) fileInput.value = '';
+  }
+
   protected searchDocuments(): void {
     if (this.isSearching()) return;
     this.searchError.set('');

@@ -1,4 +1,4 @@
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { IsInt, IsObject, IsOptional, IsString, MaxLength, Min, MinLength } from 'class-validator';
 
 export class SubmitDocumentDto {
@@ -12,6 +12,7 @@ export class SubmitDocumentDto {
   @MaxLength(200)
   documentId!: string;
 
+  @Type(() => Number)
   @IsInt()
   @Min(1)
   version!: number;

@@ -26,7 +26,7 @@ curl http://localhost:3000/health
 
 The stack contains the Angular console, NestJS API/worker, PostgreSQL with pgvector, RabbitMQ, Redis, an OpenTelemetry Collector, Prometheus, Tempo, and Grafana. Data is stored in named Docker volumes. SQL initialization scripts run only when PostgreSQL initializes a new data volume.
 
-Open the console at `http://localhost:4200`. It submits documents and polls operation status through the local frontend proxy.
+Open the console at `http://localhost:4200`. It accepts pasted text or `.txt`, `.pdf`, `.doc`, and `.docx` files, submits them through the local frontend proxy, and polls operation status. Uploads are limited to 10 MB; extracted text is limited to 1,000,000 characters.
 
 ## Local credentials
 
@@ -66,6 +66,32 @@ The endpoint returns `202 Accepted` with an `operationId`. Check its status with
 ```sh
 curl 'http://localhost:3000/v1/operations/<operationId>?tenantId=example-tenant'
 ```
+
+Upload a `.txt`, `.pdf`, `.doc`, or `.docx` file using multipart form data:
+
+```sh
+curl -X POST http://localhost:3000/v1/documents/upload \
+  -H 'idempotency-key: example-pdf-v1' \
+  -F 'file=@./example.pdf' \
+  -F 'tenantId=example-tenant' \
+  -F 'documentId=example-pdf' \
+  -F 'version=1' \
+  -F 'title=Example PDF' \
+  -F 'metadata={"source":"upload"}'
+```
+
+The API validates file signatures, extracts text, then runs the same asynchronous chunking and embedding pipeline. Scanned/image-only PDFs need OCR and are not currently supported.
+
+Search active indexed documents semantically within a tenant:
+
+```sh
+curl -G http://localhost:3000/v1/documents/search \
+  --data-urlencode 'tenantId=example-tenant' \
+  --data-urlencode 'query=How do I submit a reimbursement?' \
+  --data-urlencode 'limit=5'
+```
+
+Search embeds the query using OpenAI (or returns the cached query embedding) and returns ranked matching chunks. Each search can incur embedding usage when the query is not cached.
 
 Submitting a valid document calls the OpenAI embeddings API and may incur usage charges. The example request is illustrative; it is not run automatically.
 

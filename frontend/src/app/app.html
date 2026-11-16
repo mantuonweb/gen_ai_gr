@@ -102,9 +102,14 @@
               </label>
             </div>
             <label class="content-field">
-              <span>Source text <i>*</i></span>
-              <textarea name="content" [(ngModel)]="form.content" required maxlength="1000000" rows="9" placeholder="Paste the document text to index..."></textarea>
-              <span class="field-foot"><span>Plain text · up to 1,000,000 characters</span><span>{{ form.content.length.toLocaleString() }} / 1,000,000</span></span>
+              <span>Upload document or paste text <i>*</i></span>
+              <span class="upload-control">
+                <input id="document-file" type="file" accept=".txt,.pdf,.doc,.docx,text/plain,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" (change)="onFileSelected($event)" />
+                <span class="upload-caption"><strong>{{ selectedFile()?.name ?? 'Choose a file' }}</strong><small>TXT, PDF, DOC, DOCX · 10 MB max</small></span>
+                @if (selectedFile()) { <button class="clear-file" type="button" title="Remove selected file" (click)="clearSelectedFile()">×</button> }
+              </span>
+              <textarea name="content" [(ngModel)]="form.content" [required]="!selectedFile()" maxlength="1000000" rows="6" placeholder="Or paste plain text here..."></textarea>
+              <span class="field-foot"><span>File extraction runs before chunking</span><span>{{ form.content.length.toLocaleString() }} / 1,000,000</span></span>
             </label>
             @if (errorMessage()) {
               <div class="error-message" role="alert">{{ errorMessage() }}</div>
@@ -137,10 +142,42 @@
         </aside>
       </section>
 
-      <section class="operations-section" aria-labelledby="operations-title">
+      <section class="operations-section search-section" aria-labelledby="search-title">
         <div class="operations-header">
           <div class="section-heading compact-heading">
             <div class="section-index">03</div>
+            <div><h2 id="search-title">Search indexed documents</h2><p>Semantic search across active documents for this tenant</p></div>
+          </div>
+        </div>
+        <form class="search-form" (ngSubmit)="searchDocuments()">
+          <label class="search-input-label" for="search-query">Search query</label>
+          <div class="search-controls">
+            <input id="search-query" #searchInput [value]="searchQuery()" (input)="searchQuery.set(searchInput.value)" minlength="2" maxlength="2000" placeholder="Ask a question or describe what you need..." required />
+            <button type="submit" [disabled]="searchInput.value.trim().length < 2 || isSearching() || !apiOnline()">
+              @if (isSearching()) { <span class="button-spinner"></span> Searching... }
+              @else { Search <span aria-hidden="true">⌕</span> }
+            </button>
+          </div>
+          @if (searchError()) { <div class="error-message" role="alert">{{ searchError() }}</div> }
+        </form>
+        @if (searchResults().length) {
+          <div class="search-results">
+            @for (result of searchResults(); track $index) {
+              <article class="search-result">
+                <div class="result-topline"><strong>{{ result.title }}</strong><span>{{ result.documentId }} · v{{ result.version }}</span><span class="result-score">{{ (result.score * 100).toFixed(0) }}% match</span></div>
+                <p>{{ result.content }}</p>
+              </article>
+            }
+          </div>
+        } @else if (searchQuery() && !isSearching() && !searchError()) {
+          <div class="empty-state"><span class="empty-icon">⌕</span><span><strong>No matching chunks found</strong><small>Try another phrase or check the tenant ID.</small></span></div>
+        }
+      </section>
+
+      <section class="operations-section" aria-labelledby="operations-title">
+        <div class="operations-header">
+          <div class="section-heading compact-heading">
+            <div class="section-index">04</div>
             <div><h2 id="operations-title">Recent operations</h2><p>Submission history saved in this browser</p></div>
           </div>
           <span class="table-count">{{ operations().length }} RECORD{{ operations().length === 1 ? '' : 'S' }}</span>
