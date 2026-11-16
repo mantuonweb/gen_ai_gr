@@ -1,0 +1,173 @@
+<div class="app-shell">
+  <aside class="sidebar">
+    <a class="brand" href="/" aria-label="Ingest home">
+      <span class="brand-mark">i<span>.</span></span>
+      <span class="brand-name">ingest<span> / console</span></span>
+    </a>
+
+    <div class="side-label">Workspace</div>
+    <nav class="primary-nav" aria-label="Main navigation">
+      <a class="nav-link active" href="#intake" aria-current="page">
+        <span class="nav-glyph">＋</span>
+        <span>Document intake</span>
+      </a>
+      <a class="nav-link" href="http://localhost:3001" target="_blank" rel="noreferrer">
+        <span class="nav-glyph">⌁</span>
+        <span>Observability</span>
+        <span class="external-mark" aria-hidden="true">↗</span>
+      </a>
+    </nav>
+
+    <div class="sidebar-bottom">
+      <div class="side-label">Service status</div>
+      <div class="service-state">
+        <span class="pulse" [class.offline]="!apiOnline()"></span>
+        <span>{{ apiOnline() ? 'API connected' : 'API unavailable' }}</span>
+      </div>
+      <span class="service-endpoint">localhost:3000</span>
+      <div class="sidebar-foot">GEN AI · INGESTION</div>
+    </div>
+  </aside>
+
+  <main class="main-area">
+    <header class="topbar">
+      <div class="breadcrumbs"><span>Workspace</span><span class="crumb-sep">/</span><strong>Document intake</strong></div>
+      <a class="grafana-link" href="http://localhost:3001" target="_blank" rel="noreferrer">
+        <span class="grafana-dot"></span> Open Grafana <span aria-hidden="true">↗</span>
+      </a>
+    </header>
+
+    <div class="page-content">
+      <section class="page-heading">
+        <div>
+          <div class="eyebrow">INGESTION WORKSPACE <span class="eyebrow-line"></span> 01</div>
+          <h1>Document intake</h1>
+          <p>Send source text through chunking, embeddings, and vector indexing.</p>
+        </div>
+        <div class="heading-status"><span class="pulse" [class.offline]="!apiOnline()"></span>{{ apiOnline() ? 'All systems operational' : 'Waiting for API' }}</div>
+      </section>
+
+      <section class="metric-strip" aria-label="Local operation summary">
+        <div class="metric-cell">
+          <span class="metric-label">TRACKED OPERATIONS</span>
+          <strong>{{ operations().length.toString().padStart(2, '0') }}</strong>
+          <span class="metric-note">This browser</span>
+        </div>
+        <div class="metric-cell">
+          <span class="metric-label">IN PROGRESS</span>
+          <strong>{{ processingCount.toString().padStart(2, '0') }}</strong>
+          <span class="metric-note">Queued or processing</span>
+        </div>
+        <div class="metric-cell">
+          <span class="metric-label">COMPLETED</span>
+          <strong>{{ completedCount.toString().padStart(2, '0') }}</strong>
+          <span class="metric-note">Successfully indexed</span>
+        </div>
+        <a class="metric-link" href="http://localhost:3001" target="_blank" rel="noreferrer">
+          <span class="metric-link-top">LIVE TELEMETRY</span>
+          <span class="metric-link-main">Traces &amp; metrics <b aria-hidden="true">↗</b></span>
+          <span class="metric-link-note">Explore in Grafana</span>
+        </a>
+      </section>
+
+      <section class="work-grid" id="intake">
+        <section class="form-panel" aria-labelledby="form-title">
+          <div class="section-heading">
+            <div class="section-index">01</div>
+            <div>
+              <h2 id="form-title">Add a document</h2>
+              <p>Plain text is chunked and embedded asynchronously.</p>
+            </div>
+          </div>
+
+          <form #documentForm="ngForm" (ngSubmit)="submitDocument()">
+            <div class="form-row">
+              <label>
+                <span>Tenant ID <i>*</i></span>
+                <input name="tenantId" [(ngModel)]="form.tenantId" required maxlength="200" autocomplete="organization" />
+              </label>
+              <label>
+                <span>Document ID <i>*</i></span>
+                <input name="documentId" [(ngModel)]="form.documentId" required maxlength="200" placeholder="e.g. policy-handbook" />
+              </label>
+            </div>
+            <div class="form-row title-row">
+              <label class="title-field">
+                <span>Title <i>*</i></span>
+                <input name="title" [(ngModel)]="form.title" required maxlength="300" placeholder="Name this source" />
+              </label>
+              <label class="version-field">
+                <span>Version <i>*</i></span>
+                <input name="version" [(ngModel)]="form.version" required type="number" min="1" step="1" />
+              </label>
+            </div>
+            <label class="content-field">
+              <span>Source text <i>*</i></span>
+              <textarea name="content" [(ngModel)]="form.content" required maxlength="1000000" rows="9" placeholder="Paste the document text to index..."></textarea>
+              <span class="field-foot"><span>Plain text · up to 1,000,000 characters</span><span>{{ form.content.length.toLocaleString() }} / 1,000,000</span></span>
+            </label>
+            @if (errorMessage()) {
+              <div class="error-message" role="alert">{{ errorMessage() }}</div>
+            }
+            <div class="form-actions">
+              <span class="privacy-note"><span class="lock-glyph">⌑</span> Text is sent to the configured embedding provider</span>
+              <button type="submit" [disabled]="documentForm.invalid || isSubmitting() || !apiOnline()">
+                @if (isSubmitting()) { <span class="button-spinner"></span> Submitting... }
+                @else { Queue document <span aria-hidden="true">→</span> }
+              </button>
+            </div>
+          </form>
+        </section>
+
+        <aside class="pipeline-panel" aria-labelledby="pipeline-title">
+          <div class="pipeline-heading">
+            <div class="section-index">02</div>
+            <div><h2 id="pipeline-title">Processing path</h2><p>Asynchronous pipeline</p></div>
+          </div>
+          <ol class="pipeline-list">
+            <li><span class="pipeline-node node-api">01</span><span class="pipeline-copy"><strong>Accept &amp; validate</strong><small>NestJS API</small></span><span class="pipeline-state">READY</span></li>
+            <li><span class="pipeline-node node-queue">02</span><span class="pipeline-copy"><strong>Queue operation</strong><small>Outbox · RabbitMQ</small></span><span class="pipeline-state">READY</span></li>
+            <li><span class="pipeline-node node-cache">03</span><span class="pipeline-copy"><strong>Chunk &amp; embed</strong><small>Redis · OpenAI</small></span><span class="pipeline-state">READY</span></li>
+            <li><span class="pipeline-node node-vector">04</span><span class="pipeline-copy"><strong>Index vectors</strong><small>PostgreSQL · pgvector</small></span><span class="pipeline-state">READY</span></li>
+          </ol>
+          <div class="pipeline-bottom">
+            <span class="telemetry-mark">⌁</span>
+            <span><strong>Instrumented end to end</strong><small>OpenTelemetry traces &amp; metrics</small></span>
+          </div>
+        </aside>
+      </section>
+
+      <section class="operations-section" aria-labelledby="operations-title">
+        <div class="operations-header">
+          <div class="section-heading compact-heading">
+            <div class="section-index">03</div>
+            <div><h2 id="operations-title">Recent operations</h2><p>Submission history saved in this browser</p></div>
+          </div>
+          <span class="table-count">{{ operations().length }} RECORD{{ operations().length === 1 ? '' : 'S' }}</span>
+        </div>
+        @if (operations().length) {
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>DOCUMENT</th><th>TENANT</th><th>VERSION</th><th>SUBMITTED</th><th>STATUS</th></tr></thead>
+              <tbody>
+                @for (operation of operations(); track trackOperation($index, operation)) {
+                  <tr>
+                    <td><span class="document-name">{{ operation.documentId }}</span><small class="operation-id">{{ operation.operationId }}</small></td>
+                    <td>{{ operation.tenantId }}</td>
+                    <td>v{{ operation.version }}</td>
+                    <td>{{ operation.createdAt | date:'MMM d, HH:mm' }}</td>
+                    <td><span class="status-pill" [class]="statusClass(operation.status)"><span></span>{{ operation.status }}</span></td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        } @else {
+          <div class="empty-state"><span class="empty-icon">↳</span><span><strong>No submissions yet</strong><small>Your recent ingestion operations will appear here.</small></span></div>
+        }
+      </section>
+
+      <footer class="page-footer"><span>INGEST SERVICE <b>·</b> LOCAL DEVELOPMENT</span><span>API <code>:3000</code> <b>·</b> TELEMETRY <code>:3001</code></span></footer>
+    </div>
+  </main>
+</div>

@@ -1,0 +1,8 @@
+.env
+.env.*
+!.env.example
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+\# Generative AI E3: 3-Week Preparation P.md

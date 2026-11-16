@@ -1,0 +1,107 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(190, 90, 50, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "unit": "reqps" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "id": 1,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "single" } },
+      "targets": [{ "editorMode": "code", "expr": "sum(rate(http_server_request_count_total[5m]))", "legendFormat": "requests / sec", "range": true, "refId": "A" }],
+      "title": "HTTP request rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "unit": "s" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "id": 2,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "single" } },
+      "targets": [{ "editorMode": "code", "expr": "histogram_quantile(0.95, sum by (le) (rate(http_server_request_duration_seconds_bucket[5m])))", "legendFormat": "p95", "range": true, "refId": "A" }],
+      "title": "HTTP latency · p95",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "min": 0, "max": 100, "thresholds": { "mode": "absolute", "steps": [{ "color": "#cf7651", "value": null }, { "color": "#74a47a", "value": 75 }] }, "unit": "percent" }, "overrides": [] },
+      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 8 },
+      "id": 3,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "showPercentChange": false, "textMode": "auto" },
+      "targets": [{ "editorMode": "code", "expr": "100 * sum(embedding_cache_hits_total) / clamp_min(sum(embedding_cache_hits_total) + sum(embedding_cache_misses_total), 1)", "legendFormat": "cache hit rate", "range": true, "refId": "A" }],
+      "title": "Embedding cache hit rate",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 5, "w": 6, "x": 6, "y": 8 },
+      "id": 4,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "single" } },
+      "targets": [
+        { "editorMode": "code", "expr": "sum(embedding_cache_hits_total)", "legendFormat": "hits", "range": true, "refId": "A" },
+        { "editorMode": "code", "expr": "sum(embedding_cache_misses_total)", "legendFormat": "misses", "range": true, "refId": "B" }
+      ],
+      "title": "Embedding cache activity",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 5, "w": 6, "x": 12, "y": 8 },
+      "id": 5,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "showPercentChange": false, "textMode": "auto" },
+      "targets": [{ "editorMode": "code", "expr": "sum(embedding_cache_errors_total)", "legendFormat": "cache errors", "range": true, "refId": "A" }],
+      "title": "Redis cache errors",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "unit": "s" }, "overrides": [] },
+      "gridPos": { "h": 5, "w": 6, "x": 18, "y": 8 },
+      "id": 6,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "single" } },
+      "targets": [{ "editorMode": "code", "expr": "histogram_quantile(0.95, sum by (le) (rate(embedding_request_duration_ms_bucket[5m]))) / 1000", "legendFormat": "embedding p95", "range": true, "refId": "A" }],
+      "title": "Embedding duration · p95",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "tempo", "uid": "tempo" },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 13 },
+      "id": 7,
+      "options": { "dedupStrategy": "none", "showHistogram": false, "spanBar": { "tag": "http.route" } },
+      "targets": [{ "limit": 20, "query": "{ resource.service.name = \"gen-ai-ingest-service\" }", "queryType": "traceql", "refId": "A", "tableType": "traces" }],
+      "title": "Recent service traces",
+      "type": "traces"
+    }
+  ],
+  "refresh": "15s",
+  "schemaVersion": 39,
+  "tags": ["ingest", "opentelemetry"],
+  "templating": { "list": [] },
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Ingest Service Overview",
+  "uid": "ingest-service-overview",
+  "version": 1,
+  "weekStart": ""
+}
