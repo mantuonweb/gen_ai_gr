@@ -1,5 +1,8 @@
 import { BadRequestException } from '@nestjs/common';
+import pdfParse = require('pdf-parse');
 import { DocumentTextExtractorService } from './document-text-extractor.service';
+
+jest.mock('pdf-parse', () => jest.fn().mockResolvedValue({ text: 'Extracted PDF text' }));
 
 function makeFile(name: string, content: Buffer): Express.Multer.File {
   return {
@@ -27,6 +30,12 @@ describe('DocumentTextExtractorService', () => {
   it('rejects a PDF extension with non-PDF content', async () => {
     await expect(service.extract(makeFile('fake.pdf', Buffer.from('not a pdf'))))
       .rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('extracts text from a signature-valid PDF', async () => {
+    await expect(service.extract(makeFile('document.pdf', Buffer.from('%PDF-1.7'))))
+      .resolves.toBe('Extracted PDF text');
+    expect(pdfParse).toHaveBeenCalled();
   });
 
   it('rejects unsupported formats', async () => {

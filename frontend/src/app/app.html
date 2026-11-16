@@ -104,8 +104,9 @@
             <label class="content-field">
               <span>Upload document or paste text <i>*</i></span>
               <span class="upload-control">
-                <input id="document-file" type="file" accept=".txt,.pdf,.doc,.docx,text/plain,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" (change)="onFileSelected($event)" />
+                <input id="document-file" class="file-input-hidden" type="file" accept=".txt,.pdf,.doc,.docx,text/plain,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" (change)="onFileSelected($event)" />
                 <span class="upload-caption"><strong>{{ selectedFile()?.name ?? 'Choose a file' }}</strong><small>TXT, PDF, DOC, DOCX · 10 MB max</small></span>
+                <label class="choose-file-button" for="document-file">Choose file</label>
                 @if (selectedFile()) { <button class="clear-file" type="button" title="Remove selected file" (click)="clearSelectedFile()">×</button> }
               </span>
               <textarea name="content" [(ngModel)]="form.content" [required]="!selectedFile()" maxlength="1000000" rows="6" placeholder="Or paste plain text here..."></textarea>

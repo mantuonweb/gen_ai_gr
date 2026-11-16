@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import mammoth from 'mammoth';
-import pdfParse from 'pdf-parse';
+import pdfParse = require('pdf-parse');
 import WordExtractor from 'word-extractor';
 
 const MAX_EXTRACTED_CHARACTERS = 1_000_000;
@@ -26,21 +26,33 @@ export class DocumentTextExtractorService {
       if (!this.hasPdfSignature(file.buffer)) {
         throw new BadRequestException('The uploaded file does not have a valid PDF signature');
       }
-      const parsed = await pdfParse(file.buffer);
-      text = parsed.text;
+      try {
+        const parsed = await pdfParse(file.buffer);
+        text = parsed.text;
+      } catch {
+        throw new BadRequestException('Could not read text from the uploaded PDF');
+      }
     } else if (extension === 'docx') {
       if (!this.hasZipSignature(file.buffer)) {
         throw new BadRequestException('The uploaded file does not have a valid DOCX signature');
       }
-      const parsed = await mammoth.extractRawText({ buffer: file.buffer });
-      text = parsed.value;
+      try {
+        const parsed = await mammoth.extractRawText({ buffer: file.buffer });
+        text = parsed.value;
+      } catch {
+        throw new BadRequestException('Could not read text from the uploaded DOCX file');
+      }
     } else if (extension === 'doc') {
       if (!file.buffer.subarray(0, DOC_SIGNATURE.length).equals(DOC_SIGNATURE)) {
         throw new BadRequestException('The uploaded file does not have a valid DOC signature');
       }
-      const extractor = new WordExtractor();
-      const parsed = await extractor.extract(file.buffer);
-      text = parsed.getBody();
+      try {
+        const extractor = new WordExtractor();
+        const parsed = await extractor.extract(file.buffer);
+        text = parsed.getBody();
+      } catch {
+        throw new BadRequestException('Could not read text from the uploaded DOC file');
+      }
     } else {
       throw new BadRequestException('Supported file types are .txt, .pdf, .doc, and .docx');
     }
