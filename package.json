@@ -13,6 +13,7 @@
     "test:watch": "jest --watch"
   },
   "dependencies": {
+    "@huggingface/transformers": "^3.8.1",
     "@nestjs/common": "^11.1.6",
     "@nestjs/core": "^11.1.6",
     "@nestjs/platform-express": "^11.1.6",
@@ -25,12 +26,14 @@
     "@opentelemetry/instrumentation-pg": "^0.78.0",
     "@opentelemetry/sdk-metrics": "^3.1.1",
     "@opentelemetry/sdk-node": "^0.301.2",
+    "@stackone/defender": "^0.9.6",
     "amqplib": "^0.10.8",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.2",
     "dotenv": "^16.6.1",
     "ioredis": "^6.0.0",
     "mammoth": "^1.13.0",
+    "onnxruntime-node": "^1.21.0",
     "openai": "^5.19.1",
     "pdf-parse": "^1.1.1",
     "pg": "^8.16.3",

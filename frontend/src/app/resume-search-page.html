@@ -35,9 +35,9 @@
           <thead><tr><th>RANK</th><th>CANDIDATE</th><th>SKILLS</th><th>WHY THIS MATCH</th><th></th></tr></thead>
           <tbody>
       @for (result of searchResults(); track $index) {
-            <tr>
+            <tr [class.review-row]="result.rankingStatus === 'review'">
               <td><span class="candidate-rank">#{{ result.rank }}</span>{{ result.rank === 1 ? ' Best match' : '' }}</td>
-              <td><strong>{{ metadataText(result.metadata, 'candidateName') || result.title }}</strong><small class="candidate-email">{{ metadataText(result.metadata, 'email') }}</small></td>
+              <td><strong>{{ metadataText(result.metadata, 'candidateName') || result.title }}</strong><small class="candidate-email">{{ metadataText(result.metadata, 'email') }}</small>@if (result.rankingStatus === 'review') { <small class="review-status">Manual review</small> }</td>
               <td>{{ metadataText(result.metadata, 'skills') || 'Not specified' }}</td>
               <td class="match-reason">{{ result.matchReason }}</td>
               <td><button class="resume-toggle" type="button" [attr.aria-expanded]="expandedResumeId() === result.documentId" (click)="toggleResume(result)">{{ expandedResumeId() === result.documentId ? 'Hide resume' : 'View resume' }}</button></td>

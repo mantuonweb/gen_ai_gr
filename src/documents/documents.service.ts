@@ -188,7 +188,7 @@ export class DocumentsService {
         LIMIT $3`,
       [`[${embedding.join(',')}]`, query.tenantId, shortlistLimit],
     );
-    const ranked = await this.candidateRanking.rank(query.query, result.rows.map((row) => ({
+    const ranked = await this.candidateRanking.rank(query.tenantId, query.query, result.rows.map((row) => ({
       documentId: row.document_id,
       version: row.document_version,
       title: row.title,

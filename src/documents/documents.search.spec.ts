@@ -3,6 +3,13 @@ import { EmbeddingService } from '../embeddings/embedding.service';
 import { CandidateSearchResult } from './candidate-ranking.service';
 import { DocumentsService } from './documents.service';
 
+jest.mock('@stackone/defender', () => ({
+  createPromptDefense: jest.fn(() => ({
+    warmupTier2: jest.fn().mockResolvedValue(undefined),
+    defendToolResults: jest.fn(),
+  })),
+}));
+
 describe('DocumentsService.search', () => {
   it('embeds a query and filters ranked matches by tenant', async () => {
     const vector = Array.from({ length: 1536 }, (_, index) => index / 1536);
@@ -21,7 +28,7 @@ describe('DocumentsService.search', () => {
       }),
     };
     const candidateRanking = {
-      rank: jest.fn().mockImplementation(async (_query: string, candidates: CandidateSearchResult[]) => ({
+      rank: jest.fn().mockImplementation(async (_tenantId: string, _query: string, candidates: CandidateSearchResult[]) => ({
         method: 'llm',
         results: candidates.map((candidate, index) => ({
           ...candidate,
@@ -60,7 +67,7 @@ describe('DocumentsService.search', () => {
     expect(database.query.mock.calls[0][0]).toContain('ORDER BY score DESC');
     expect(database.query.mock.calls[0][1][1]).toBe('tenant-a');
     expect(database.query.mock.calls[0][1][2]).toBe(20);
-    expect(candidateRanking.rank).toHaveBeenCalledWith('how does search work', [expect.objectContaining({
+    expect(candidateRanking.rank).toHaveBeenCalledWith('tenant-a', 'how does search work', [expect.objectContaining({
       documentId: 'guide',
       score: 0.91,
     })]);

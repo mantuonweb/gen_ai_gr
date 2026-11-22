@@ -31,6 +31,7 @@ export interface SearchResult {
   score: number;
   rank: number;
   matchReason: string;
+  rankingStatus: 'ranked' | 'review';
 }
 
 export interface ResumeDetails {

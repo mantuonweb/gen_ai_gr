@@ -64,6 +64,28 @@ export class EmbeddingCacheService implements OnModuleInit, OnModuleDestroy {
     if (failure?.[0]) throw failure[0];
   }
 
+  async getJson<T>(namespace: string, identifier: string): Promise<T | undefined> {
+    await this.ensureConnected();
+    const value = await this.redis.get(this.jsonKey(namespace, identifier));
+    if (!value) return undefined;
+    try {
+      return JSON.parse(value) as T;
+    } catch {
+      return undefined;
+    }
+  }
+
+  async setJson(
+    namespace: string,
+    identifier: string,
+    value: unknown,
+    ttlSeconds: number,
+  ): Promise<void> {
+    if (!Number.isSafeInteger(ttlSeconds) || ttlSeconds <= 0) return;
+    await this.ensureConnected();
+    await this.redis.set(this.jsonKey(namespace, identifier), JSON.stringify(value), 'EX', ttlSeconds);
+  }
+
   private async ensureConnected(): Promise<void> {
     if (this.redis.status === 'wait' || this.redis.status === 'end') {
       await this.redis.connect();
@@ -73,6 +95,11 @@ export class EmbeddingCacheService implements OnModuleInit, OnModuleDestroy {
   private key(model: string, text: string): string {
     const digest = createHash('sha256').update(model).update('\0').update(text).digest('hex');
     return `genai:embedding:v1:${digest}`;
+  }
+
+  private jsonKey(namespace: string, identifier: string): string {
+    const digest = createHash('sha256').update(namespace).update('\0').update(identifier).digest('hex');
+    return `genai:json:v1:${digest}`;
   }
 
   private parseEmbedding(value: string | null): number[] | undefined {
@@ -96,6 +123,6 @@ export class EmbeddingCacheService implements OnModuleInit, OnModuleDestroy {
     const now = Date.now();
     if (now - this.lastConnectionWarning < 30000) return;
     this.lastConnectionWarning = now;
-    this.logger.warn('Redis embedding cache is unavailable; embedding requests will bypass cache');
+    this.logger.warn('Redis cache is unavailable; cache operations will be bypassed');
   }
 }

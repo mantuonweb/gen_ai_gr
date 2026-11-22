@@ -1,6 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { createHash } from 'node:crypto';
 import OpenAI from 'openai';
 import { LLMReranker, ModelProvider } from 'rerank';
+import { createPromptDefense, PromptDefense } from '@stackone/defender';
+import { EmbeddingCacheService } from '../cache/embedding-cache.service';
 
 export interface CandidateSearchResult {
   documentId: string;
@@ -14,19 +17,38 @@ export interface CandidateSearchResult {
 export interface RankedCandidate extends CandidateSearchResult {
   rank: number;
   matchReason: string;
+  rankingStatus: 'ranked' | 'review';
+}
+
+interface CachedCandidateRanking {
+  method: 'llm';
+  results: Array<Pick<RankedCandidate, 'documentId' | 'rank' | 'matchReason' | 'rankingStatus'>>;
 }
 
 @Injectable()
 export class CandidateRankingService {
   private readonly logger = new Logger(CandidateRankingService.name);
+  private readonly cacheTtlSeconds: number;
+  private readonly rerankModel: string;
+  private readonly explanationModel: string;
   private readonly client: OpenAI;
   private readonly reranker: LLMReranker;
+  private readonly defense: PromptDefense;
 
-  constructor() {
+  constructor(private readonly cache: EmbeddingCacheService) {
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) throw new Error('OPENAI_API_KEY is required');
     this.client = new OpenAI({ apiKey });
-    const model = process.env.OPENAI_RERANK_MODEL || 'gpt-4o-mini';
+    const configuredTtl = Number(process.env.CANDIDATE_RANKING_CACHE_TTL_SECONDS ?? 3600);
+    this.cacheTtlSeconds = Number.isSafeInteger(configuredTtl) && configuredTtl > 0 ? configuredTtl : 3600;
+    this.defense = createPromptDefense({
+      blockHighRisk: true,
+      requireTier2: true,
+      tier2Config: { onnxThreads: 1 },
+    });
+    this.rerankModel = process.env.OPENAI_RERANK_MODEL || 'gpt-4o-mini';
+    this.explanationModel = process.env.OPENAI_EXPLANATION_MODEL || process.env.OPENAI_CHAT_MODEL || 'gpt-4o-mini';
+    const model = this.rerankModel;
     const provider: ModelProvider = {
       name: 'openai',
       model,
@@ -62,37 +84,111 @@ export class CandidateRankingService {
   }
 
   async rank(
+    tenantId: string,
     query: string,
     candidates: CandidateSearchResult[],
   ): Promise<{ method: 'llm' | 'semantic'; results: RankedCandidate[] }> {
     if (!candidates.length) return { method: 'semantic', results: [] };
 
+    const cacheKey = this.cacheKey(tenantId, query, candidates);
+    try {
+      const cached = await this.cache.getJson<CachedCandidateRanking>(
+        'candidate-ranking',
+        cacheKey,
+      );
+      if (cached?.method === 'llm' && Array.isArray(cached.results) && cached.results.length === candidates.length) {
+        const candidatesById = new Map(candidates.map((candidate) => [candidate.documentId, candidate]));
+        const results = cached.results.flatMap((item) => {
+          const candidate = candidatesById.get(item.documentId);
+          if (!candidate || !Number.isInteger(item.rank) || typeof item.matchReason !== 'string' ||
+              (item.rankingStatus !== 'ranked' && item.rankingStatus !== 'review')) return [];
+          return [{ ...candidate, ...item }];
+        });
+        if (results.length === candidates.length) return { method: 'llm', results };
+      }
+    } catch (error) {
+      this.logger.warn(`Candidate ranking cache read failed: ${(error as Error).message}`);
+    }
+
+    let safeCandidates: CandidateSearchResult[] = [];
+    const reviewCandidates: CandidateSearchResult[] = [];
+    try {
+      await this.defense.warmupTier2();
+      const verdicts = await this.defense.defendToolResults(candidates.map((candidate) => ({
+        value: {
+          content: `${JSON.stringify(candidate.metadata.skills ?? [])}\n${candidate.content.slice(0, 3000)}`,
+        },
+        toolName: 'resume_search',
+      })));
+      if (verdicts.length !== candidates.length) throw new Error('Defender returned an unexpected result count');
+
+      candidates.forEach((candidate, index) => {
+        const verdict = verdicts[index];
+        const sanitized = verdict.sanitized as { content?: unknown } | null;
+        if (!verdict.allowed || verdict.coverageDegraded || verdict.tier2Available === false ||
+            typeof sanitized?.content !== 'string' || !sanitized.content.trim()) {
+          reviewCandidates.push(candidate);
+          return;
+        }
+        safeCandidates.push({ ...candidate, content: sanitized.content });
+      });
+    } catch (error) {
+      this.logger.warn(`Local resume safety scan unavailable; skipping LLM ranking: ${(error as Error).message}`);
+      return this.reviewFallback(candidates, 'Local safety scan unavailable; not sent to LLM. Review manually.');
+    }
+
+    if (!safeCandidates.length) {
+      return this.reviewFallback(
+        candidates,
+        'Resume text was flagged or could not be fully scanned; excluded from LLM ranking. Review manually.',
+      );
+    }
+
     let orderedCandidates: CandidateSearchResult[];
     try {
       const rankedIds = await this.reranker.rerank(
-        candidates.map((candidate) => ({
+        safeCandidates.map((candidate) => ({
           documentId: candidate.documentId,
-          passage: `${JSON.stringify(candidate.metadata.skills ?? [])}\n${candidate.content.slice(0, 3000)}`,
+          passage: candidate.content,
         })),
         'documentId',
         'passage',
         query,
       );
-      const candidatesById = new Map(candidates.map((candidate) => [candidate.documentId, candidate]));
+      const candidatesById = new Map(safeCandidates.map((candidate) => [candidate.documentId, candidate]));
       orderedCandidates = rankedIds.result
         .map((documentId) => candidatesById.get(documentId))
         .filter((candidate): candidate is CandidateSearchResult => candidate !== undefined);
       if (!orderedCandidates.length) throw new Error('The reranker returned no candidate IDs');
       const seen = new Set(orderedCandidates.map((candidate) => candidate.documentId));
-      orderedCandidates.push(...candidates.filter((candidate) => !seen.has(candidate.documentId)));
+      orderedCandidates.push(...safeCandidates.filter((candidate) => !seen.has(candidate.documentId)));
     } catch (error) {
       this.logger.warn(`LLM reranking unavailable: ${(error as Error).message}`);
-      return this.semanticFallback(candidates);
+      const rankedFallback = this.semanticFallback(safeCandidates);
+      const reviewFallback = this.reviewFallback(
+        reviewCandidates,
+        'Resume text was flagged or could not be fully scanned; excluded from LLM ranking. Review manually.',
+      );
+      return {
+        method: 'semantic',
+        results: [
+          ...rankedFallback.results,
+          ...reviewFallback.results.map((candidate, index) => ({
+            ...candidate,
+            rank: rankedFallback.results.length + index + 1,
+          })),
+        ],
+      };
     }
+
+    const originalCandidates = new Map(candidates.map((candidate) => [candidate.documentId, candidate]));
+    const responseCandidates = [...orderedCandidates, ...reviewCandidates].map(
+      (candidate) => originalCandidates.get(candidate.documentId) ?? candidate,
+    );
 
     try {
       const response = await this.client.chat.completions.create({
-        model: process.env.OPENAI_EXPLANATION_MODEL || process.env.OPENAI_CHAT_MODEL || 'gpt-4o-mini',
+        model: this.explanationModel,
         temperature: 0,
         response_format: { type: 'json_object' },
         messages: [
@@ -111,7 +207,6 @@ export class CandidateRankingService {
               roleOrQualifications: query,
               candidates: orderedCandidates.map((candidate) => ({
                 documentId: candidate.documentId,
-                skills: candidate.metadata.skills ?? [],
                 resumeEvidence: candidate.content.slice(0, 3000),
               })),
             }),
@@ -132,22 +227,43 @@ export class CandidateRankingService {
           )
           .map((item) => [item.documentId, item.reason.trim().slice(0, 500)]),
       );
-      return {
+      const ranked: { method: 'llm'; results: RankedCandidate[] } = {
         method: 'llm',
-        results: orderedCandidates.map((candidate, index) => ({
+        results: responseCandidates.map((candidate, index) => ({
           ...candidate,
           rank: index + 1,
-          matchReason: reasons.get(candidate.documentId) || 'Ranked by relevance; no specific rationale was returned.',
+          matchReason: reviewCandidates.some((item) => item.documentId === candidate.documentId)
+            ? 'Resume text was flagged or could not be fully scanned; excluded from LLM ranking. Review manually.'
+            : reasons.get(candidate.documentId) || 'Ranked by relevance; no specific rationale was returned.',
+          rankingStatus: reviewCandidates.some((item) => item.documentId === candidate.documentId) ? 'review' : 'ranked',
         })),
       };
+      try {
+        const cached: CachedCandidateRanking = {
+          method: 'llm',
+          results: ranked.results.map(({ documentId, rank, matchReason, rankingStatus }) => ({
+            documentId,
+            rank,
+            matchReason,
+            rankingStatus,
+          })),
+        };
+        await this.cache.setJson('candidate-ranking', cacheKey, cached, this.cacheTtlSeconds);
+      } catch (error) {
+        this.logger.warn(`Candidate ranking cache write failed: ${(error as Error).message}`);
+      }
+      return ranked;
     } catch (error) {
       this.logger.warn(`LLM match explanations unavailable: ${(error as Error).message}`);
       return {
         method: 'llm',
-        results: orderedCandidates.map((candidate, index) => ({
+        results: responseCandidates.map((candidate, index) => ({
           ...candidate,
           rank: index + 1,
-          matchReason: 'LLM-ranked by relevance; a specific explanation could not be generated.',
+          matchReason: reviewCandidates.some((item) => item.documentId === candidate.documentId)
+            ? 'Resume text was flagged or could not be fully scanned; excluded from LLM ranking. Review manually.'
+            : 'LLM-ranked by relevance; a specific explanation could not be generated.',
+          rankingStatus: reviewCandidates.some((item) => item.documentId === candidate.documentId) ? 'review' : 'ranked',
         })),
       };
     }
@@ -162,7 +278,40 @@ export class CandidateRankingService {
         ...candidate,
         rank: index + 1,
         matchReason: 'LLM ranking unavailable; ordered by semantic similarity.',
+        rankingStatus: 'ranked',
       })),
     };
+  }
+
+  private reviewFallback(
+    candidates: CandidateSearchResult[],
+    reason: string,
+  ): { method: 'semantic'; results: RankedCandidate[] } {
+    return {
+      method: 'semantic',
+      results: candidates.map((candidate, index) => ({
+        ...candidate,
+        rank: index + 1,
+        matchReason: reason,
+        rankingStatus: 'review',
+      })),
+    };
+  }
+
+  private cacheKey(tenantId: string, query: string, candidates: CandidateSearchResult[]): string {
+    const payload = {
+      tenantId,
+      query: query.trim().replace(/\s+/g, ' ').toLowerCase(),
+      rerankModel: this.rerankModel,
+      explanationModel: this.explanationModel,
+      candidates: candidates.map((candidate) => ({
+        documentId: candidate.documentId,
+        version: candidate.version,
+        content: candidate.content,
+        skills: candidate.metadata.skills ?? [],
+        score: candidate.score,
+      })),
+    };
+    return createHash('sha256').update(JSON.stringify(payload)).digest('hex');
   }
 }
