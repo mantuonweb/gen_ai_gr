@@ -20,15 +20,15 @@
 
 **Input:** Tenant ID and a role, skills, experience, or qualification query.
 
-1. Embed the search query, using the Redis embedding cache when available.
-2. Search active resume chunks in PostgreSQL for the tenant.
-3. Keep the highest-similarity chunk for each resume and form a shortlist of up to 20 candidates.
-4. Build a ranking-cache key from the tenant, normalized query, candidate versions and content, and model identifiers.
-5. If a valid ranking result exists in Redis, return its ranks and rationales without running Defender or the LLM calls.
-6. If there is no cache hit, scan shortlisted resume excerpts locally with StackOne Defender.
-7. For each allowed, fully scanned candidate, pass only sanitized text to the LLM ranking prompt.
-8. Keep flagged or incompletely scanned candidates out of LLM prompts and mark them for manual review.
-9. Use `rerank-ts`'s `LLMReranker` with OpenAI to order the safe candidates against the query.
+ 1. Embed the search query, using the Redis embedding cache when available.
+ 2. Search active resume chunks in PostgreSQL for the tenant.
+ 3. Keep the highest-similarity chunk for each resume and form a shortlist of up to 20 candidates.
+ 4. Build a ranking-cache key from the tenant, normalized query, candidate versions and content, and model identifiers.
+ 5. If a valid ranking result exists in Redis, return its ranks and rationales without running Defender or the LLM calls.
+ 6. If there is no cache hit, scan shortlisted resume excerpts locally with StackOne Defender.
+ 7. For each allowed, fully scanned candidate, pass only sanitized text to the LLM ranking prompt.
+ 8. Keep flagged or incompletely scanned candidates out of LLM prompts and mark them for manual review.
+ 9. Use `rerank-ts`'s `LLMReranker` with OpenAI to order the safe candidates against the query.
 10. Ask OpenAI for a concise, evidence-based match rationale for each LLM-ranked candidate.
 11. Combine LLM-ranked candidates with review-only candidates and show the ordered results.
 12. Cache the candidate IDs, ranks, rationales, and review statuses in Redis for one hour. Resume text and contact details are not stored in the ranking cache.
