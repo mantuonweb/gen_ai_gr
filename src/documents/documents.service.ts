@@ -7,6 +7,7 @@ import {
 import { createHash, randomUUID } from 'node:crypto';
 import { DatabaseService } from '../database/database.service';
 import { EmbeddingService } from '../embeddings/embedding.service';
+import { CandidateRankingService } from './candidate-ranking.service';
 import { SearchDocumentsDto } from './search-documents.dto';
 import { SubmitDocumentDto } from './submit-document.dto';
 
@@ -27,6 +28,7 @@ export class DocumentsService {
   constructor(
     private readonly database: DatabaseService,
     private readonly embeddings: EmbeddingService,
+    private readonly candidateRanking: CandidateRankingService,
   ) {}
 
   async submit(dto: SubmitDocumentDto, idempotencyKey?: string) {
@@ -60,16 +62,21 @@ export class DocumentsService {
 
         await client.query(
           `INSERT INTO documents
-             (tenant_id, document_id, version, title, source_text, metadata, status)
-           VALUES ($1, $2, $3, $4, $5, $6, 'queued')`,
+             (tenant_id, document_id, version, title, status)
+           VALUES ($1, $2, $3, $4, 'queued')`,
           [
             dto.tenantId,
             dto.documentId,
             dto.version,
             dto.title,
-            dto.content,
-            dto.metadata ?? {},
           ],
+        );
+
+        await client.query(
+          `INSERT INTO resume_details
+             (tenant_id, document_id, version, resume_text, candidate_details)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [dto.tenantId, dto.documentId, dto.version, dto.content, dto.metadata ?? {}],
         );
 
         const operationResult = await client.query<OperationRow>(
@@ -112,9 +119,41 @@ export class DocumentsService {
     return this.toResponse(result.rows[0]);
   }
 
+  async getDocument(documentId: string, tenantId: string) {
+    if (!tenantId?.trim()) throw new BadRequestException('tenantId query parameter is required');
+
+    const result = await this.database.query<{
+      document_id: string;
+      version: number;
+      title: string;
+      resume_text: string;
+      candidate_details: Record<string, unknown>;
+    }>(
+      `SELECT d.document_id, d.version, d.title, rd.resume_text, rd.candidate_details
+         FROM documents d
+         JOIN resume_details rd
+           ON rd.tenant_id = d.tenant_id
+          AND rd.document_id = d.document_id
+          AND rd.version = d.version
+        WHERE d.tenant_id = $1 AND d.document_id = $2 AND d.is_active = true`,
+      [tenantId, documentId],
+    );
+    if (!result.rowCount) throw new NotFoundException('Resume not found');
+
+    const document = result.rows[0];
+    return {
+      documentId: document.document_id,
+      version: document.version,
+      title: document.title,
+      content: document.resume_text,
+      metadata: document.candidate_details,
+    };
+  }
+
   async search(query: SearchDocumentsDto) {
     const [embedding] = await this.embeddings.embed([query.query]);
     const limit = query.limit ?? 5;
+    const shortlistLimit = Math.max(limit, 20);
     const result = await this.database.query<{
       document_id: string;
       document_version: number;
@@ -123,29 +162,45 @@ export class DocumentsService {
       metadata: Record<string, unknown>;
       score: number;
     }>(
-      `SELECT c.document_id, c.document_version, d.title, c.content, c.metadata,
-              1 - (c.embedding <=> $1::vector) AS score
-         FROM document_chunks c
-         JOIN documents d
-           ON d.tenant_id = c.tenant_id
-          AND d.document_id = c.document_id
-          AND d.version = c.document_version
-        WHERE c.tenant_id = $2 AND d.is_active = true
-        ORDER BY c.embedding <=> $1::vector
+      `WITH ranked_chunks AS (
+          SELECT c.document_id, c.document_version, d.title, c.content,
+            rd.candidate_details AS metadata,
+                1 - (c.embedding <=> $1::vector) AS score,
+                ROW_NUMBER() OVER (
+                  PARTITION BY c.tenant_id, c.document_id, c.document_version
+                  ORDER BY c.embedding <=> $1::vector
+                ) AS resume_rank
+           FROM document_chunks c
+           JOIN documents d
+             ON d.tenant_id = c.tenant_id
+            AND d.document_id = c.document_id
+            AND d.version = c.document_version
+           JOIN resume_details rd
+             ON rd.tenant_id = d.tenant_id
+            AND rd.document_id = d.document_id
+            AND rd.version = d.version
+          WHERE c.tenant_id = $2 AND d.is_active = true
+       )
+       SELECT document_id, document_version, title, content, metadata, score
+         FROM ranked_chunks
+        WHERE resume_rank = 1
+        ORDER BY score DESC
         LIMIT $3`,
-      [`[${embedding.join(',')}]`, query.tenantId, limit],
+      [`[${embedding.join(',')}]`, query.tenantId, shortlistLimit],
     );
+    const ranked = await this.candidateRanking.rank(query.query, result.rows.map((row) => ({
+      documentId: row.document_id,
+      version: row.document_version,
+      title: row.title,
+      content: row.content,
+      metadata: row.metadata,
+      score: Number(row.score),
+    })));
 
     return {
       query: query.query,
-      results: result.rows.map((row) => ({
-        documentId: row.document_id,
-        version: row.document_version,
-        title: row.title,
-        content: row.content,
-        metadata: row.metadata,
-        score: Number(row.score),
-      })),
+      rankingMethod: ranked.method,
+      results: ranked.results.slice(0, limit),
     };
   }
 

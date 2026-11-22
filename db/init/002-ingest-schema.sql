@@ -3,8 +3,6 @@ CREATE TABLE IF NOT EXISTS documents (
   document_id text NOT NULL,
   version integer NOT NULL CHECK (version > 0),
   title text NOT NULL,
-  source_text text NOT NULL,
-  metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
   status text NOT NULL DEFAULT 'queued'
     CHECK (status IN ('queued', 'processing', 'active', 'superseded', 'failed')),
   is_active boolean NOT NULL DEFAULT false,
@@ -16,6 +14,19 @@ CREATE TABLE IF NOT EXISTS documents (
 CREATE UNIQUE INDEX IF NOT EXISTS documents_one_active_version_idx
   ON documents (tenant_id, document_id)
   WHERE is_active = true;
+
+CREATE TABLE IF NOT EXISTS resume_details (
+  tenant_id text NOT NULL,
+  document_id text NOT NULL,
+  version integer NOT NULL,
+  resume_text text NOT NULL,
+  candidate_details jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (tenant_id, document_id, version),
+  FOREIGN KEY (tenant_id, document_id, version)
+    REFERENCES documents (tenant_id, document_id, version)
+    ON DELETE CASCADE
+);
 
 CREATE TABLE IF NOT EXISTS ingest_operations (
   id uuid PRIMARY KEY,

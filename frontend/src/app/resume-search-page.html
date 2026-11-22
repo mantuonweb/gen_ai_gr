@@ -1,0 +1,66 @@
+<section class="page-heading">
+  <div>
+    <div class="eyebrow">TALENT WORKSPACE <span class="eyebrow-line"></span> 02</div>
+    <h1>Search candidates</h1>
+    <p>Find the strongest resume matches by role, skills, experience, or qualifications.</p>
+  </div>
+</section>
+
+<section class="operations-section search-section" aria-labelledby="search-title">
+  <div class="operations-header">
+    <div class="section-heading compact-heading">
+      <div class="section-index">01</div>
+      <div><h2 id="search-title">Ranked candidates</h2><p>Ranked by evidence relevant to your role or qualifications</p></div>
+    </div>
+  </div>
+  <form class="search-form" (ngSubmit)="searchDocuments()">
+    <label class="search-input-label" for="search-query">Role or qualification</label>
+    <div class="search-controls">
+      <input id="search-query" #searchInput [value]="searchQuery()" (input)="searchQuery.set(searchInput.value)" minlength="2" maxlength="2000" placeholder="e.g. Senior data analyst with SQL and Python" required />
+      <button type="submit" [disabled]="searchInput.value.trim().length < 2 || isSearching()">
+        @if (isSearching()) { <span class="button-spinner"></span> Searching... }
+        @else { Find matches <span aria-hidden="true">⌕</span> }
+      </button>
+    </div>
+    @if (searchError()) { <div class="error-message" role="alert">{{ searchError() }}</div> }
+  </form>
+  @if (searchResults().length) {
+    <div class="ranking-summary">
+      <strong>{{ rankingMethod() === 'llm' ? 'LLM-ranked candidates' : 'Semantic ranking' }}</strong>
+      <span>{{ rankingMethod() === 'llm' ? 'AI ranking is decision support. Review each resume before making decisions.' : 'LLM ranking is unavailable; results are ordered by semantic similarity.' }}</span>
+    </div>
+    <div class="search-results">
+      <div class="table-wrap">
+        <table class="candidate-table">
+          <thead><tr><th>RANK</th><th>CANDIDATE</th><th>SKILLS</th><th>WHY THIS MATCH</th><th></th></tr></thead>
+          <tbody>
+      @for (result of searchResults(); track $index) {
+            <tr>
+              <td><span class="candidate-rank">#{{ result.rank }}</span>{{ result.rank === 1 ? ' Best match' : '' }}</td>
+              <td><strong>{{ metadataText(result.metadata, 'candidateName') || result.title }}</strong><small class="candidate-email">{{ metadataText(result.metadata, 'email') }}</small></td>
+              <td>{{ metadataText(result.metadata, 'skills') || 'Not specified' }}</td>
+              <td class="match-reason">{{ result.matchReason }}</td>
+              <td><button class="resume-toggle" type="button" [attr.aria-expanded]="expandedResumeId() === result.documentId" (click)="toggleResume(result)">{{ expandedResumeId() === result.documentId ? 'Hide resume' : 'View resume' }}</button></td>
+            </tr>
+            @if (expandedResumeId() === result.documentId) {
+              <tr class="resume-detail-row"><td colspan="5">
+                @if (loadingResumeId() === result.documentId) {
+                  <p>Loading resume details...</p>
+                } @else if (resumeDetails()[result.documentId]; as details) {
+                  <div class="result-rationale"><strong>Why this match</strong><p>{{ result.matchReason }}</p></div>
+                  <h3>{{ details.title }}</h3>
+                  <p class="resume-evidence">{{ details.content }}</p>
+                } @else if (detailsError()) {
+                  <p class="error-message" role="alert">{{ detailsError() }}</p>
+                }
+              </td></tr>
+            }
+      }
+          </tbody>
+        </table>
+      </div>
+    </div>
+  } @else if (searchQuery() && !isSearching() && !searchError()) {
+    <div class="empty-state"><span class="empty-icon">⌕</span><span><strong>No matching resumes found</strong><small>Try different skills or qualifications.</small></span></div>
+  }
+</section>

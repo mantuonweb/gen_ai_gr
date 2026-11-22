@@ -1,0 +1,87 @@
+<section class="page-heading">
+  <div>
+    <div class="eyebrow">TALENT WORKSPACE <span class="eyebrow-line"></span> 01</div>
+    <h1>Upload resume</h1>
+    <p>Index a candidate's resume and profile details for semantic matching.</p>
+  </div>
+</section>
+
+<section class="work-grid">
+  <section class="form-panel" aria-labelledby="form-title">
+    <div class="section-heading">
+      <div class="section-index">01</div>
+      <div>
+        <h2 id="form-title">Candidate profile</h2>
+        <p>PDF text and profile metadata are indexed asynchronously.</p>
+      </div>
+    </div>
+
+    <form #documentForm="ngForm" (ngSubmit)="submitDocument()">
+      <label>
+        <span>Candidate name <i>*</i></span>
+        <input name="candidateName" [(ngModel)]="candidateName" required maxlength="200" autocomplete="name" placeholder="Full name" />
+      </label>
+      <div class="form-row candidate-fields">
+        <label>
+          <span>Email</span>
+          <input name="candidateEmail" [(ngModel)]="candidateEmail" type="email" maxlength="254" autocomplete="email" placeholder="name@example.com" />
+        </label>
+        <label>
+          <span>Skills</span>
+          <input name="candidateSkills" [(ngModel)]="candidateSkills" maxlength="1000" placeholder="e.g. Python, SQL, analytics" />
+        </label>
+      </div>
+      <label class="content-field">
+        <span>Resume PDF <i>*</i></span>
+        <span class="upload-control">
+          <input id="document-file" class="file-input-hidden" type="file" accept="application/pdf,.pdf" (change)="onFileSelected($event)" />
+          <span class="upload-caption"><strong>{{ selectedFile()?.name ?? 'Choose a resume PDF' }}</strong><small>PDF · 10 MB max</small></span>
+          <label class="choose-file-button" for="document-file">Choose file</label>
+          @if (selectedFile()) { <button class="clear-file" type="button" title="Remove selected file" (click)="clearSelectedFile()">×</button> }
+        </span>
+        <span class="field-foot"><span>Text extraction, embedding, and indexing run automatically</span></span>
+      </label>
+      @if (errorMessage()) {
+        <div class="error-message" role="alert">{{ errorMessage() }}</div>
+      }
+      <div class="form-actions">
+        <span class="privacy-note"><span class="lock-glyph">⌑</span> Resume text is sent to the configured embedding provider</span>
+        <button type="submit" [disabled]="documentForm.invalid || !selectedFile() || isSubmitting()">
+          @if (isSubmitting()) { <span class="button-spinner"></span> Submitting... }
+          @else { Index resume <span aria-hidden="true">→</span> }
+        </button>
+      </div>
+    </form>
+  </section>
+
+</section>
+
+<section class="operations-section" aria-labelledby="operations-title">
+  <div class="operations-header">
+    <div class="section-heading compact-heading">
+      <div class="section-index">03</div>
+      <div><h2 id="operations-title">Recent uploads</h2><p>Submission history saved in this browser</p></div>
+    </div>
+    <span class="table-count">{{ operations().length }} RECORD{{ operations().length === 1 ? '' : 'S' }}</span>
+  </div>
+  @if (operations().length) {
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>RESUME</th><th>TENANT</th><th>VERSION</th><th>SUBMITTED</th><th>STATUS</th></tr></thead>
+        <tbody>
+          @for (operation of operations(); track trackOperation($index, operation)) {
+            <tr>
+              <td><span class="document-name">{{ operation.documentId }}</span><small class="operation-id">{{ operation.operationId }}</small></td>
+              <td>{{ operation.tenantId }}</td>
+              <td>v{{ operation.version }}</td>
+              <td>{{ operation.createdAt | date:'MMM d, HH:mm' }}</td>
+              <td><span class="status-pill" [class]="statusClass(operation.status)"><span></span>{{ operation.status }}</span></td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  } @else {
+    <div class="empty-state"><span class="empty-icon">↳</span><span><strong>No uploads yet</strong><small>Recent resume indexing operations will appear here.</small></span></div>
+  }
+</section>

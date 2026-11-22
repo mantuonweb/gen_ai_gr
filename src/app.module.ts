@@ -3,6 +3,7 @@ import { EmbeddingCacheService } from './cache/embedding-cache.service';
 import { DatabaseService } from './database/database.service';
 import { DocumentsController } from './documents/documents.controller';
 import { DocumentsService } from './documents/documents.service';
+import { CandidateRankingService } from './documents/candidate-ranking.service';
 import { DocumentTextExtractorService } from './documents/document-text-extractor.service';
 import { HealthController } from './health.controller';
 import { EmbeddingService } from './embeddings/embedding.service';
@@ -17,6 +18,7 @@ import { RootController } from './root.controller';
     DatabaseService,
     EmbeddingCacheService,
     DocumentsService,
+    CandidateRankingService,
     DocumentTextExtractorService,
     EmbeddingService,
     OpenAiEmbeddingProvider,

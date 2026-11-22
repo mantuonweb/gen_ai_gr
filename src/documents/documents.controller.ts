@@ -71,6 +71,14 @@ export class DocumentsController {
     return this.documentsService.search(query);
   }
 
+  @Get('documents/:documentId')
+  getDocument(
+    @Param('documentId') documentId: string,
+    @Query('tenantId') tenantId: string,
+  ) {
+    return this.documentsService.getDocument(documentId, tenantId);
+  }
+
   @Get('operations/:id')
   getOperation(
     @Param('id', ParseUUIDPipe) operationId: string,

@@ -1,0 +1,49 @@
+<section class="page-heading">
+  <div>
+    <div class="eyebrow">TALENT WORKSPACE <span class="eyebrow-line"></span> 00</div>
+    <h1>Dashboard</h1>
+    <p>Resume indexing status and service pipeline.</p>
+  </div>
+</section>
+
+<section class="metric-strip" aria-label="Local operation summary">
+  <div class="metric-cell">
+    <span class="metric-label">TRACKED OPERATIONS</span>
+    <strong>{{ operations().length.toString().padStart(2, '0') }}</strong>
+    <span class="metric-note">This browser</span>
+  </div>
+  <div class="metric-cell">
+    <span class="metric-label">IN PROGRESS</span>
+    <strong>{{ processingCount.toString().padStart(2, '0') }}</strong>
+    <span class="metric-note">Queued or processing</span>
+  </div>
+  <div class="metric-cell">
+    <span class="metric-label">COMPLETED</span>
+    <strong>{{ completedCount.toString().padStart(2, '0') }}</strong>
+    <span class="metric-note">Successfully indexed</span>
+  </div>
+  <a class="metric-link" href="http://localhost:3001" target="_blank" rel="noreferrer">
+    <span class="metric-link-top">LIVE TELEMETRY</span>
+    <span class="metric-link-main">Traces &amp; metrics <b aria-hidden="true">↗</b></span>
+    <span class="metric-link-note">Explore in Grafana</span>
+  </a>
+</section>
+
+<section class="work-grid">
+  <aside class="pipeline-panel" aria-labelledby="pipeline-title">
+    <div class="pipeline-heading">
+      <div class="section-index">01</div>
+      <div><h2 id="pipeline-title">Processing path</h2><p>Asynchronous pipeline</p></div>
+    </div>
+    <ol class="pipeline-list">
+      <li><span class="pipeline-node node-api">01</span><span class="pipeline-copy"><strong>Accept &amp; validate</strong><small>NestJS API</small></span><span class="pipeline-state">READY</span></li>
+      <li><span class="pipeline-node node-queue">02</span><span class="pipeline-copy"><strong>Queue operation</strong><small>Outbox · RabbitMQ</small></span><span class="pipeline-state">READY</span></li>
+      <li><span class="pipeline-node node-cache">03</span><span class="pipeline-copy"><strong>Chunk &amp; embed</strong><small>Redis · OpenAI</small></span><span class="pipeline-state">READY</span></li>
+      <li><span class="pipeline-node node-vector">04</span><span class="pipeline-copy"><strong>Index vectors</strong><small>PostgreSQL · pgvector</small></span><span class="pipeline-state">READY</span></li>
+    </ol>
+    <div class="pipeline-bottom">
+      <span class="telemetry-mark">⌁</span>
+      <span><strong>Instrumented end to end</strong><small>OpenTelemetry traces &amp; metrics</small></span>
+    </div>
+  </aside>
+</section>

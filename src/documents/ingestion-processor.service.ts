@@ -9,8 +9,7 @@ interface ProcessingRecord {
   document_id: string;
   version: number;
   title: string;
-  source_text: string;
-  metadata: Record<string, unknown>;
+  resume_text: string;
 }
 
 @Injectable()
@@ -49,12 +48,16 @@ export class IngestionProcessorService {
           RETURNING id, tenant_id, document_id, version
        )
        SELECT c.id, c.tenant_id, c.document_id, c.version,
-              d.title, d.source_text, d.metadata
+              d.title, rd.resume_text
          FROM claimed c
          JOIN documents d
            ON d.tenant_id = c.tenant_id
           AND d.document_id = c.document_id
-          AND d.version = c.version`,
+          AND d.version = c.version
+         JOIN resume_details rd
+           ON rd.tenant_id = c.tenant_id
+          AND rd.document_id = c.document_id
+          AND rd.version = c.version`,
       [operationId],
     );
     if (!claim.rowCount) return;
@@ -68,7 +71,7 @@ export class IngestionProcessorService {
     );
 
     try {
-      const chunks = splitTextIntoChunks(record.source_text);
+      const chunks = splitTextIntoChunks(record.resume_text);
       if (!chunks.length) throw new Error('Document has no extractable text');
 
       const vectors: number[][] = [];
@@ -88,7 +91,6 @@ export class IngestionProcessorService {
 
         for (let index = 0; index < chunks.length; index += 1) {
           const metadata = {
-            ...record.metadata,
             tenantId: record.tenant_id,
             documentId: record.document_id,
             version: record.version,

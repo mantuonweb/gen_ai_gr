@@ -1,15 +1,23 @@
 <div class="app-shell">
   <aside class="sidebar">
-    <a class="brand" href="/" aria-label="Ingest home">
+    <a class="brand" routerLink="/dashboard" aria-label="Resume workspace dashboard">
       <span class="brand-mark">i<span>.</span></span>
-      <span class="brand-name">ingest<span> / console</span></span>
+      <span class="brand-name">talent<span> / search</span></span>
     </a>
 
     <div class="side-label">Workspace</div>
     <nav class="primary-nav" aria-label="Main navigation">
-      <a class="nav-link active" href="#intake" aria-current="page">
+      <a class="nav-link" routerLink="/dashboard" routerLinkActive="active" ariaCurrentWhenActive="page">
+        <span class="nav-glyph">▦</span>
+        <span>Dashboard</span>
+      </a>
+      <a class="nav-link" routerLink="/upload" routerLinkActive="active" ariaCurrentWhenActive="page">
         <span class="nav-glyph">＋</span>
-        <span>Document intake</span>
+        <span>Upload resume</span>
+      </a>
+      <a class="nav-link" routerLink="/search" routerLinkActive="active" ariaCurrentWhenActive="page">
+        <span class="nav-glyph">⌕</span>
+        <span>Search candidates</span>
       </a>
       <a class="nav-link" href="http://localhost:3001" target="_blank" rel="noreferrer">
         <span class="nav-glyph">⌁</span>
@@ -25,187 +33,21 @@
         <span>{{ apiOnline() ? 'API connected' : 'API unavailable' }}</span>
       </div>
       <span class="service-endpoint">localhost:3000</span>
-      <div class="sidebar-foot">GEN AI · INGESTION</div>
+      <div class="sidebar-foot">TALENT · MATCHING</div>
     </div>
   </aside>
 
   <main class="main-area">
     <header class="topbar">
-      <div class="breadcrumbs"><span>Workspace</span><span class="crumb-sep">/</span><strong>Document intake</strong></div>
+      <div class="breadcrumbs"><span>Workspace</span><span class="crumb-sep">/</span><strong>Talent dashboard</strong></div>
       <a class="grafana-link" href="http://localhost:3001" target="_blank" rel="noreferrer">
         <span class="grafana-dot"></span> Open Grafana <span aria-hidden="true">↗</span>
       </a>
     </header>
 
     <div class="page-content">
-      <section class="page-heading">
-        <div>
-          <div class="eyebrow">INGESTION WORKSPACE <span class="eyebrow-line"></span> 01</div>
-          <h1>Document intake</h1>
-          <p>Send source text through chunking, embeddings, and vector indexing.</p>
-        </div>
-        <div class="heading-status"><span class="pulse" [class.offline]="!apiOnline()"></span>{{ apiOnline() ? 'All systems operational' : 'Waiting for API' }}</div>
-      </section>
-
-      <section class="metric-strip" aria-label="Local operation summary">
-        <div class="metric-cell">
-          <span class="metric-label">TRACKED OPERATIONS</span>
-          <strong>{{ operations().length.toString().padStart(2, '0') }}</strong>
-          <span class="metric-note">This browser</span>
-        </div>
-        <div class="metric-cell">
-          <span class="metric-label">IN PROGRESS</span>
-          <strong>{{ processingCount.toString().padStart(2, '0') }}</strong>
-          <span class="metric-note">Queued or processing</span>
-        </div>
-        <div class="metric-cell">
-          <span class="metric-label">COMPLETED</span>
-          <strong>{{ completedCount.toString().padStart(2, '0') }}</strong>
-          <span class="metric-note">Successfully indexed</span>
-        </div>
-        <a class="metric-link" href="http://localhost:3001" target="_blank" rel="noreferrer">
-          <span class="metric-link-top">LIVE TELEMETRY</span>
-          <span class="metric-link-main">Traces &amp; metrics <b aria-hidden="true">↗</b></span>
-          <span class="metric-link-note">Explore in Grafana</span>
-        </a>
-      </section>
-
-      <section class="work-grid" id="intake">
-        <section class="form-panel" aria-labelledby="form-title">
-          <div class="section-heading">
-            <div class="section-index">01</div>
-            <div>
-              <h2 id="form-title">Add a document</h2>
-              <p>Plain text is chunked and embedded asynchronously.</p>
-            </div>
-          </div>
-
-          <form #documentForm="ngForm" (ngSubmit)="submitDocument()">
-            <div class="form-row">
-              <label>
-                <span>Tenant ID <i>*</i></span>
-                <input name="tenantId" [(ngModel)]="form.tenantId" required maxlength="200" autocomplete="organization" />
-              </label>
-              <label>
-                <span>Document ID <i>*</i></span>
-                <input name="documentId" [(ngModel)]="form.documentId" required maxlength="200" placeholder="e.g. policy-handbook" />
-              </label>
-            </div>
-            <div class="form-row title-row">
-              <label class="title-field">
-                <span>Title <i>*</i></span>
-                <input name="title" [(ngModel)]="form.title" required maxlength="300" placeholder="Name this source" />
-              </label>
-              <label class="version-field">
-                <span>Version <i>*</i></span>
-                <input name="version" [(ngModel)]="form.version" required type="number" min="1" step="1" />
-              </label>
-            </div>
-            <label class="content-field">
-              <span>Upload document or paste text <i>*</i></span>
-              <span class="upload-control">
-                <input id="document-file" class="file-input-hidden" type="file" accept=".txt,.pdf,.doc,.docx,text/plain,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" (change)="onFileSelected($event)" />
-                <span class="upload-caption"><strong>{{ selectedFile()?.name ?? 'Choose a file' }}</strong><small>TXT, PDF, DOC, DOCX · 10 MB max</small></span>
-                <label class="choose-file-button" for="document-file">Choose file</label>
-                @if (selectedFile()) { <button class="clear-file" type="button" title="Remove selected file" (click)="clearSelectedFile()">×</button> }
-              </span>
-              <textarea name="content" [(ngModel)]="form.content" [required]="!selectedFile()" maxlength="1000000" rows="6" placeholder="Or paste plain text here..."></textarea>
-              <span class="field-foot"><span>File extraction runs before chunking</span><span>{{ form.content.length.toLocaleString() }} / 1,000,000</span></span>
-            </label>
-            @if (errorMessage()) {
-              <div class="error-message" role="alert">{{ errorMessage() }}</div>
-            }
-            <div class="form-actions">
-              <span class="privacy-note"><span class="lock-glyph">⌑</span> Text is sent to the configured embedding provider</span>
-              <button type="submit" [disabled]="documentForm.invalid || isSubmitting() || !apiOnline()">
-                @if (isSubmitting()) { <span class="button-spinner"></span> Submitting... }
-                @else { Queue document <span aria-hidden="true">→</span> }
-              </button>
-            </div>
-          </form>
-        </section>
-
-        <aside class="pipeline-panel" aria-labelledby="pipeline-title">
-          <div class="pipeline-heading">
-            <div class="section-index">02</div>
-            <div><h2 id="pipeline-title">Processing path</h2><p>Asynchronous pipeline</p></div>
-          </div>
-          <ol class="pipeline-list">
-            <li><span class="pipeline-node node-api">01</span><span class="pipeline-copy"><strong>Accept &amp; validate</strong><small>NestJS API</small></span><span class="pipeline-state">READY</span></li>
-            <li><span class="pipeline-node node-queue">02</span><span class="pipeline-copy"><strong>Queue operation</strong><small>Outbox · RabbitMQ</small></span><span class="pipeline-state">READY</span></li>
-            <li><span class="pipeline-node node-cache">03</span><span class="pipeline-copy"><strong>Chunk &amp; embed</strong><small>Redis · OpenAI</small></span><span class="pipeline-state">READY</span></li>
-            <li><span class="pipeline-node node-vector">04</span><span class="pipeline-copy"><strong>Index vectors</strong><small>PostgreSQL · pgvector</small></span><span class="pipeline-state">READY</span></li>
-          </ol>
-          <div class="pipeline-bottom">
-            <span class="telemetry-mark">⌁</span>
-            <span><strong>Instrumented end to end</strong><small>OpenTelemetry traces &amp; metrics</small></span>
-          </div>
-        </aside>
-      </section>
-
-      <section class="operations-section search-section" aria-labelledby="search-title">
-        <div class="operations-header">
-          <div class="section-heading compact-heading">
-            <div class="section-index">03</div>
-            <div><h2 id="search-title">Search indexed documents</h2><p>Semantic search across active documents for this tenant</p></div>
-          </div>
-        </div>
-        <form class="search-form" (ngSubmit)="searchDocuments()">
-          <label class="search-input-label" for="search-query">Search query</label>
-          <div class="search-controls">
-            <input id="search-query" #searchInput [value]="searchQuery()" (input)="searchQuery.set(searchInput.value)" minlength="2" maxlength="2000" placeholder="Ask a question or describe what you need..." required />
-            <button type="submit" [disabled]="searchInput.value.trim().length < 2 || isSearching() || !apiOnline()">
-              @if (isSearching()) { <span class="button-spinner"></span> Searching... }
-              @else { Search <span aria-hidden="true">⌕</span> }
-            </button>
-          </div>
-          @if (searchError()) { <div class="error-message" role="alert">{{ searchError() }}</div> }
-        </form>
-        @if (searchResults().length) {
-          <div class="search-results">
-            @for (result of searchResults(); track $index) {
-              <article class="search-result">
-                <div class="result-topline"><strong>{{ result.title }}</strong><span>{{ result.documentId }} · v{{ result.version }}</span><span class="result-score">{{ (result.score * 100).toFixed(0) }}% match</span></div>
-                <p>{{ result.content }}</p>
-              </article>
-            }
-          </div>
-        } @else if (searchQuery() && !isSearching() && !searchError()) {
-          <div class="empty-state"><span class="empty-icon">⌕</span><span><strong>No matching chunks found</strong><small>Try another phrase or check the tenant ID.</small></span></div>
-        }
-      </section>
-
-      <section class="operations-section" aria-labelledby="operations-title">
-        <div class="operations-header">
-          <div class="section-heading compact-heading">
-            <div class="section-index">04</div>
-            <div><h2 id="operations-title">Recent operations</h2><p>Submission history saved in this browser</p></div>
-          </div>
-          <span class="table-count">{{ operations().length }} RECORD{{ operations().length === 1 ? '' : 'S' }}</span>
-        </div>
-        @if (operations().length) {
-          <div class="table-wrap">
-            <table>
-              <thead><tr><th>DOCUMENT</th><th>TENANT</th><th>VERSION</th><th>SUBMITTED</th><th>STATUS</th></tr></thead>
-              <tbody>
-                @for (operation of operations(); track trackOperation($index, operation)) {
-                  <tr>
-                    <td><span class="document-name">{{ operation.documentId }}</span><small class="operation-id">{{ operation.operationId }}</small></td>
-                    <td>{{ operation.tenantId }}</td>
-                    <td>v{{ operation.version }}</td>
-                    <td>{{ operation.createdAt | date:'MMM d, HH:mm' }}</td>
-                    <td><span class="status-pill" [class]="statusClass(operation.status)"><span></span>{{ operation.status }}</span></td>
-                  </tr>
-                }
-              </tbody>
-            </table>
-          </div>
-        } @else {
-          <div class="empty-state"><span class="empty-icon">↳</span><span><strong>No submissions yet</strong><small>Your recent ingestion operations will appear here.</small></span></div>
-        }
-      </section>
-
-      <footer class="page-footer"><span>INGEST SERVICE <b>·</b> LOCAL DEVELOPMENT</span><span>API <code>:3000</code> <b>·</b> TELEMETRY <code>:3001</code></span></footer>
+      <router-outlet />
+      <footer class="page-footer"><span>RESUME MATCHING <b>·</b> LOCAL DEVELOPMENT</span><span>API <code>:3000</code> <b>·</b> TELEMETRY <code>:3001</code></span></footer>
     </div>
   </main>
 </div>

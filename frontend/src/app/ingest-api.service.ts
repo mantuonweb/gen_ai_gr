@@ -29,6 +29,16 @@ export interface SearchResult {
   content: string;
   metadata: Record<string, unknown>;
   score: number;
+  rank: number;
+  matchReason: string;
+}
+
+export interface ResumeDetails {
+  documentId: string;
+  version: number;
+  title: string;
+  content: string;
+  metadata: Record<string, unknown>;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -60,10 +70,25 @@ export class IngestApiService {
     });
   }
 
-  search(tenantId: string, query: string, limit = 5): Observable<{ query: string; results: SearchResult[] }> {
+  search(tenantId: string, query: string, limit = 5): Observable<{
+    query: string;
+    rankingMethod: 'llm' | 'semantic';
+    results: SearchResult[];
+  }> {
     const params = new URLSearchParams({ tenantId, query, limit: String(limit) });
-    return this.http.get<{ query: string; results: SearchResult[] }>(
+    return this.http.get<{
+      query: string;
+      rankingMethod: 'llm' | 'semantic';
+      results: SearchResult[];
+    }>(
       `${this.baseUrl}/v1/documents/search?${params.toString()}`,
+    );
+  }
+
+  getResume(documentId: string, tenantId: string): Observable<ResumeDetails> {
+    const params = new URLSearchParams({ tenantId });
+    return this.http.get<ResumeDetails>(
+      `${this.baseUrl}/v1/documents/${encodeURIComponent(documentId)}?${params.toString()}`,
     );
   }
 
